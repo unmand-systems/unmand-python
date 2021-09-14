@@ -15,7 +15,7 @@ setuptools.setup(name='unmand',
     long_description=readme(),
     long_description_content_type="text/markdown",
     project_urls={
-        "Bug Tracker": "https://github.com/pypa/sampleproject/issues",
+        "Bug Tracker": "https://github.com/unmand-systems/unmand-python/issues",
     },
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
