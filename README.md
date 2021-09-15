@@ -1,32 +1,21 @@
-# Unmand Python SDK
+# Unmand Python Library
 
-This is a simple package to aid in consuming the Unmand APIs.
+[![Version](https://img.shields.io/pypi/v/unmand.svg)](https://www.npmjs.org/package/unmand)
+
+The Unmand Python library provides convenient access to the Unmand APIs from applications written in the Python language.
 
 For more help, see our [docs](https://unmand.com/docs).
 
-## Getting Started
+## Requirements
 
+Python 3+
+## Installation
 
-#### Create virtual environment
+Install the package with:
 
-    $ python3 -m venv venv
-
-#### Start virtual environment
-
-    $ source venv/bin/activate
-
-#### Install python requirements
-
-    $ pip install -r requirements.txt
-
-#### Install Wheel for GemFury management
-	$ pip install wheel
-
-## If you need to create a new package
-##### Run the following command after updating setup.py version
-	$ python setup.py bdist_wheel
-##### and then drag and drop the new package generated file inside the `dist` folder
-
+```sh
+pip install unmand
+```
 ## Example Usage
 
 ```python
