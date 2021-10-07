@@ -21,9 +21,8 @@ class TokenAuth(AuthBase): # pylint: disable=too-few-public-methods
 class Job:
     """Represents a job running on the Exfil API"""
 
-    def __init__(self, job_id, redis_id, status):
+    def __init__(self, job_id, status):
         self.job_id = job_id
-        self.redis_id = redis_id
         self.status = status
         self.time_queued = time.time()
         self.time_finished = None
@@ -121,8 +120,8 @@ class ExfilAPI:
 
         if r.status_code == requests.codes.created: # pylint: disable=no-member
             response = r.json()
-            return Job(response.get('jobId'), response.get('redisId'), response.get('status'))
-        return Job(None, None, 'FAILED')
+            return Job(response.get('jobId'), response.get('status'))
+        return Job(None, 'FAILED')
 
     def poll(self, job, max_tries=100, interval=10.0, suppress_output=False): # pylint: disable=too-many-branches
         """Check if prediction is done"""
@@ -135,7 +134,6 @@ class ExfilAPI:
 
         params = {
             "jobId": job.job_id,
-            "redisId": job.redis_id
         }
 
         while job.status not in ['FAILED', 'FINISHED']:
