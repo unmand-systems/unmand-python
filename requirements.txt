@@ -10,7 +10,7 @@ keyring==23.2.1
 packaging==21.0
 pep517==0.11.0
 pkginfo==1.7.1
-Pygments==2.10.0
+Pygments==2.15.0
 pyparsing==2.4.7
 readme-renderer==29.0
 requests==2.26.0
