@@ -20,6 +20,6 @@ six==1.16.0
 tomli==1.2.1
 tqdm==4.62.2
 twine==3.4.2
-urllib3==1.26.17
+urllib3==1.26.18
 webencodings==0.5.1
 zipp==3.5.0
