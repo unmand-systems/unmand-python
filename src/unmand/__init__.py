@@ -18,6 +18,7 @@ class TokenAuth(AuthBase): # pylint: disable=too-few-public-methods
         r.headers['Authorization'] = self.token
         return r
 
+
 class Job:
     """Represents a job running on the Exfil API"""
 
@@ -38,7 +39,7 @@ class Job:
         self.result = result
 
     def __repr__(self):
-        return '<{}: Id={} Status={}>'.format(self.__class__.__name__, self.job_id, self.status)
+        return f'<{self.__class__.__name__}: Id={self.job_id} Status={self.status}>'
 
 
 class Task: # pylint: disable=too-few-public-methods, too-many-instance-attributes
@@ -68,20 +69,18 @@ class Task: # pylint: disable=too-few-public-methods, too-many-instance-attribut
         if self.updated is not None:
             self.updated = self.updated.isoformat()
 
-        if isinstance(self.status, str):
-            if self.status not in ['FAILURE', 'SUCCESS']:
-                raise Exception('Status must be one of "FAILURE" or "SUCCESS"')
-        else:
+        if not isinstance(self.status, str):
             raise Exception('Status must be a string and one of "FAILURE" or "SUCCESS"')
 
-        if isinstance(self.environment, str):
-            if self.environment not in ['TEST', 'UAT', 'PROD']:
-                raise Exception("""Status must be one of "TEST", "UAT", or "PROD" """)
-            if self.environment == 'UAT':
-                self.environment = 'TEST'
-        else:
+        if self.status not in ['FAILURE', 'SUCCESS']:
+            raise Exception('Status must be one of "FAILURE" or "SUCCESS"')
+        if not isinstance(self.environment, str):
             raise Exception("""Status must be a string and one of "TEST", "UAT", or "PROD" """)
 
+        if self.environment not in ['TEST', 'UAT', 'PROD']:
+            raise Exception("""Status must be one of "TEST", "UAT", or "PROD" """)
+        if self.environment == 'UAT':
+            self.environment = 'TEST'
         if not isinstance(self.outcome, str):
             raise Exception('Response must be a string')
         if not self.outcome[0].isupper():
@@ -91,7 +90,8 @@ class Task: # pylint: disable=too-few-public-methods, too-many-instance-attribut
             raise Exception('Details must be JSON compatible: list or dictionary')
 
     def __repr__(self):
-        return '<{}: Id={} Status={}>'.format(self.__class__.__name__, self.guid, self.status)
+        return f'<{self.__class__.__name__}: Id={self.guid} Status={self.status}>'
+
 
 class ExfilAPI:
     """Implements a connection to the Exfil API"""
@@ -103,27 +103,34 @@ class ExfilAPI:
         else:
             self.url = 'https://exfil.unmand.app/'
 
-    def queue(self, file_data, uuid=None):
+    def queue(self, file_data, guid=None):
         """Submit a document for prediction"""
         files = {
             "file": file_data
         }
 
         data = {
-            "model": uuid
+            "model": guid
         }
 
-        if uuid:
-            r = requests.post(self.url + 'predictions/', files=files, data=data, auth=TokenAuth(self.token))
+        if guid:
+            r = requests.post(
+                f'{self.url}extractions/',
+                files=files,
+                data=data,
+                auth=TokenAuth(self.token),
+            )
         else:
-            r = requests.post(self.url + 'predictions/', files=files, auth=TokenAuth(self.token))
+            r = requests.post(
+                f'{self.url}extractions/', files=files, auth=TokenAuth(self.token)
+            )
 
         if r.status_code == requests.codes.created: # pylint: disable=no-member
             response = r.json()
             return Job(response.get('jobId'), response.get('status'))
         return Job(None, 'FAILED')
 
-    def poll(self, job, max_tries=100, interval=10.0, suppress_output=False): # pylint: disable=too-many-branches
+    def poll(self, job, max_tries=100, interval=10.0, suppress_output=False):  # pylint: disable=too-many-branches
         """Check if prediction is done"""
 
         # Helper function
@@ -132,14 +139,14 @@ class ExfilAPI:
 
         try_count = 0
 
-        params = {
-            "jobId": job.job_id,
-        }
+        extraction_guid = job.job_id
 
         while job.status not in ['FAILED', 'FINISHED']:
             time.sleep(interval)
 
-            r = requests.post(self.url + 'predictions/result', params, auth=TokenAuth(self.token))
+            r = requests.post(
+                f'{self.url}extractions/{extraction_guid}/result', auth=TokenAuth(self.token)
+            )
 
             if r.status_code == requests.codes.ok: # pylint: disable=no-member
                 response = r.json()
@@ -180,6 +187,7 @@ class ExfilAPI:
                     logging.error('API not responding or responding with error state')
                 return job
 
+
 class SwarmAPI:
     """Implements a connection to the Exfil API"""
 
@@ -192,8 +200,10 @@ class SwarmAPI:
 
     def upload_swarm_task(self, task):
         """Upload a Swarm task"""
-        params = {k: v for k, v in task.__dict__.items()} # pylint: disable=unnecessary-comprehension
-        r = requests.post(self.url + 'tasks/create', json=params, auth=TokenAuth(self.token))
+        params = dict(task.__dict__.items())
+        r = requests.post(
+            f'{self.url}tasks/create', json=params, auth=TokenAuth(self.token)
+        )
         if r.status_code == requests.codes.created:  # pylint: disable=no-member
             return r.json()
         logging.error(f'API returned {r.status_code}') # pylint: disable=logging-fstring-interpolation
@@ -201,8 +211,10 @@ class SwarmAPI:
 
     def update_swarm_task(self, task):
         """Update a Swarm task"""
-        params = {k: v for k, v in task.__dict__.items()} # pylint: disable=unnecessary-comprehension
-        r = requests.put(self.url + f'tasks/{task.id}', json=params, auth=TokenAuth(self.token))
+        params = dict(task.__dict__.items())
+        r = requests.put(
+            f'{self.url}tasks/{task.id}', json=params, auth=TokenAuth(self.token)
+        )
         if r.status_code == requests.codes.ok:  # pylint: disable=no-member
             return r.json()
         logging.error(f'API returned {r.status_code}') # pylint: disable=logging-fstring-interpolation
