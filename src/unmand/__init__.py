@@ -105,29 +105,21 @@ class ExfilAPI:
 
     def queue(self, file_data, guid=None):
         """Submit a document for prediction"""
-        files = {
-            "file": file_data
-        }
-
-        data = {
-            "model": guid
-        }
+        files = {"file": file_data}
 
         if guid:
-            r = requests.post(
-                f'{self.url}extractions/',
-                files=files,
-                data=data,
-                auth=TokenAuth(self.token),
-            )
-        else:
-            r = requests.post(
-                f'{self.url}extractions/', files=files, auth=TokenAuth(self.token)
-            )
+            logging.error('Model version selection not supported. Defaulting to the ACTIVE model version.')
 
-        if r.status_code == requests.codes.created: # pylint: disable=no-member
-            response = r.json()
+        result = requests.post(
+            f'{self.url}projects/extractions',
+            files=files,
+            auth=TokenAuth(self.token)
+        )
+
+        if result.status_code == requests.codes.created:  # pylint: disable=no-member
+            response = result.json()
             return Job(response.get('jobId'), response.get('status'))
+
         return Job(None, 'FAILED')
 
     def poll(self, job, max_tries=100, interval=10.0, suppress_output=False):  # pylint: disable=too-many-branches
@@ -135,6 +127,7 @@ class ExfilAPI:
 
         # Helper function
         def estimate_job_time(bounding_box_count):
+            """Estimate job time based on number of bounding boxes"""
             return 0.000014 * (bounding_box_count ** 2) + (0.02255 * bounding_box_count) + 1.08
 
         try_count = 0
@@ -144,12 +137,12 @@ class ExfilAPI:
         while job.status not in ['FAILED', 'FINISHED']:
             time.sleep(interval)
 
-            r = requests.post(
-                f'{self.url}extractions/{extraction_guid}/result', auth=TokenAuth(self.token)
+            result = requests.post(
+                f'{self.url}extractions/{extraction_guid}/data', auth=TokenAuth(self.token)
             )
 
-            if r.status_code == requests.codes.ok: # pylint: disable=no-member
-                response = r.json()
+            if result.status_code == requests.codes.ok:  # pylint: disable=no-member
+                response = result.json()
 
                 job.update_status(response.get('status'))
 
@@ -160,15 +153,18 @@ class ExfilAPI:
                             logging.error('API not responding')
                         job.update_status('FAILED')
                         return job
+
                 elif job.status == 'STARTED':
                     wait_period = estimate_job_time(response.get('numberOfBboxes'))
                     if not suppress_output:
                         logging.info('Job running: Estimated job length {:.1f}s'.format(wait_period))
                     time.sleep(wait_period)
+
                 elif job.status == 'FAILED':
                     if not suppress_output:
                         logging.error('Job failed')
                     return job
+
                 elif job.status == 'FINISHED':
                     result = {
                         'total_time': response.get('timeTaken'),
@@ -177,10 +173,14 @@ class ExfilAPI:
                         'data': response.get('data'),
                         'bboxes': response.get('bboxes')
                     }
+
                     job.save_result(result)
+
                     if not suppress_output:
                         logging.info('Job completed')
+
                     return job
+
             else:
                 job.update_status('FAILED')
                 if not suppress_output:
