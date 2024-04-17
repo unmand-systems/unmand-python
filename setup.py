@@ -1,13 +1,14 @@
 """Core module for making requests to Unmand APIs"""
 import setuptools
 
+
 def readme():
     """Pull README file for long documentation string"""
     with open("README.md", "r") as f:
         return f.read()
 
 setuptools.setup(name='unmand',
-    version='1.0.1',
+    version='2.0.0',
     description='Helper library for consuming the Unmand API',
     url='https://github.com/unmand-systems/unmand-python',
     author='Josiah Khor',
