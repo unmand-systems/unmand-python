@@ -138,7 +138,7 @@ class ExfilAPI:
         while extraction.status not in ['FAILED', 'FINISHED']:
             time.sleep(interval)
 
-            result = requests.post(
+            result = requests.get(
                 f'{self.url}extractions/{extraction_guid}/data', auth=TokenAuth(self.token)
             )
 
