@@ -20,27 +20,27 @@ class TokenAuth(AuthBase): # pylint: disable=too-few-public-methods
         return r
 
 
-class Job:
-    """Represents a job running on the Exfil API"""
+class Extraction:
+    """Represents an extraction running on Exfil API"""
 
-    def __init__(self, job_id, status):
-        self.job_id = job_id
+    def __init__(self, extraction_guid, status):
+        self.guid = extraction_guid
         self.status = status
         self.time_queued = time.time()
         self.time_finished = None
         self.result = None
 
     def update_status(self, status):
-        """Change status of the job"""
+        """Change status of the extraction"""
         self.status = status
 
     def save_result(self, result):
-        """Save job result"""
+        """Save extraction result"""
         self.time_finished = time.time()
         self.result = result
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}: Id={self.job_id} Status={self.status}>'
+        return f'<{self.__class__.__name__}: Id={self.guid} Status={self.status}>'
 
 
 class Task: # pylint: disable=too-few-public-methods, too-many-instance-attributes
@@ -119,23 +119,23 @@ class ExfilAPI:
 
         if result.status_code == requests.codes.created:  # pylint: disable=no-member
             response = result.json()
-            return Job(response.get('jobId'), response.get('status'))
+            return Extraction(response.get('extractionGuid'), response.get('status'))
 
-        return Job(None, 'FAILED')
+        return Extraction(None, 'FAILED')
 
-    def poll(self, job, max_tries=100, interval=10.0, suppress_output=False):  # pylint: disable=too-many-branches
+    def poll(self, extraction, max_tries=100, interval=10.0, suppress_output=False):  # pylint: disable=too-many-branches
         """Check if prediction is done"""
 
         # Helper function
-        def estimate_job_time(bounding_box_count):
-            """Estimate job time based on number of bounding boxes"""
+        def estimate_extraction_time(bounding_box_count):
+            """Estimate extraction time based on number of bounding boxes"""
             return 0.000014 * (bounding_box_count ** 2) + (0.02255 * bounding_box_count) + 1.08
 
         try_count = 0
 
-        extraction_guid = job.job_id
+        extraction_guid = extraction.guid
 
-        while job.status not in ['FAILED', 'FINISHED']:
+        while extraction.status not in ['FAILED', 'FINISHED']:
             time.sleep(interval)
 
             result = requests.post(
@@ -145,28 +145,29 @@ class ExfilAPI:
             if result.status_code == requests.codes.ok:  # pylint: disable=no-member
                 response = result.json()
 
-                job.update_status(response.get('status'))
+                extraction.update_status(response.get('status'))
 
-                if job.status == 'QUEUED':
+                if extraction.status == 'QUEUED':
                     try_count += 1
                     if try_count > max_tries:
                         if not suppress_output:
                             logging.error('API not responding')
-                        job.update_status('FAILED')
-                        return job
+                        extraction.update_status('FAILED')
+                        return extraction
 
-                elif job.status == 'STARTED':
-                    wait_period = estimate_job_time(response.get('numberOfBboxes'))
+                elif extraction.status == 'STARTED':
+                    wait_period = estimate_extraction_time(
+                        len(response.get('bboxes', [])))
                     if not suppress_output:
-                        logging.info('Job running: Estimated job length {:.1f}s'.format(wait_period))
+                        logging.info('Extraction running: Estimated extraction length {:.1f}s'.format(wait_period))
                     time.sleep(wait_period)
 
-                elif job.status == 'FAILED':
+                elif extraction.status == 'FAILED':
                     if not suppress_output:
-                        logging.error('Job failed')
-                    return job
+                        logging.error('Extraction failed')
+                    return extraction
 
-                elif job.status == 'FINISHED':
+                elif extraction.status == 'FINISHED':
                     result = {
                         'total_time': response.get('timeTaken'),
                         'feature_extraction_time': response.get('timeTakenFeatureExtraction'),
@@ -175,18 +176,18 @@ class ExfilAPI:
                         'bboxes': response.get('bboxes')
                     }
 
-                    job.save_result(result)
+                    extraction.save_result(result)
 
                     if not suppress_output:
-                        logging.info('Job completed')
+                        logging.info('Extraction completed')
 
-                    return job
+                    return extraction
 
             else:
-                job.update_status('FAILED')
+                extraction.update_status('FAILED')
                 if not suppress_output:
                     logging.error('API not responding or responding with error state')
-                return job
+                return extraction
 
 
 class SwarmAPI:
