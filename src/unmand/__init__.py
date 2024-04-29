@@ -1,4 +1,5 @@
 """Upload a Swarm task"""
+import os
 import time
 import logging
 from datetime import datetime
@@ -99,9 +100,9 @@ class ExfilAPI:
     def __init__(self, token, test=False):
         self.token = token
         if test:
-            self.url = 'https://exfil-uat.unmand.app/'
+            self.url = os.getenv('EXFIL_API_URL', 'https://exfil-uat.unmand.app/')
         else:
-            self.url = 'https://exfil.unmand.app/'
+            self.url = os.getenv('EXFIL_API_URL', 'https://exfil.unmand.app/')
 
     def queue(self, file_data, guid=None):
         """Submit a document for prediction"""
