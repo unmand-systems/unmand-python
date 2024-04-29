@@ -19,22 +19,22 @@ pip install unmand
 ## Example Usage
 
 ```python
-from unmand import Job, ExfilAPI
+from unmand import Extraction, ExfilAPI
 
 token = 'TOP-SECRET-EXAMPLE-TOKEN'
 document_path = 'Sample.pdf'
 
 exfil = ExfilAPI(token)
 with open(document_path, 'rb') as file_data:
-    job = exfil.queue(file_data)
-    print(job)
-    if job.status != "FAILED":
-        exfil.poll(job=job)
-        if job.status == 'FINISHED':
-            print(job.result)
+    extraction = exfil.queue(file_data)
+    print(extraction)
+    if extraction.status != "FAILED":
+        exfil.poll(extraction=extraction)
+        if extraction.status == 'FINISHED':
+            print(extraction.result)
 ```
 
-## ExfilAPI and Job
+## ExfilAPI and Extraction
 
 The main class is ExfilAPI. Instantiate this with your token argument. Use the optional argument `test` to direct your queries to the test API instead of the production API. For example:
 
@@ -43,30 +43,30 @@ exfil_test = ExfilAPI(token, test=True) # This aims at the test API
 exfil = ExfilAPI(token) # This aims at the production API
 ```
 
-Submit a job by attaching the binary file data from your system to the queue method of ExfilAPI. This will return an instance of the Job class.
+Submit a extraction by attaching the binary file data from your system to the queue method of ExfilAPI. This will return an instance of the Extraction class.
 
 ```python
-job = exfil.queue(file_data)
+extraction = exfil.queue(file_data)
 ```
 
-At any time, you can get the status of the job:
+At any time, you can get the status of the extraction:
 
 ```python
-print(job) # or
-print(job.status)
+print(extraction) # or
+print(extraction.status)
 ```
 
-Once a job is queued, call the poll method of the ExfilAPI class to be updated when the job is finished. Use the optional argument `suppress_output` to stop updates printing to screen.
+Once a extraction is queued, call the poll method of the ExfilAPI class to be updated when the extraction is finished. Use the optional argument `suppress_output` to stop updates printing to screen.
 
 ```python
-exfil.poll(job=job) # or
-exfil.poll(job=job, suppress_output=True)
+exfil.poll(extraction=extraction)  # or
+exfil.poll(extraction=extraction, suppress_output=True)
 ```
 
-Once finished, the results of the job are saved as a dictionary under the `result` attribute.
+Once finished, the results of the extraction are saved as a dictionary under the `result` attribute.
 
 ```python
-print(job.result)
+print(extraction.result)
 ```
 
 
