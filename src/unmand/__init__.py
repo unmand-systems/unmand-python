@@ -112,7 +112,7 @@ class ExfilAPI:
         }
 
         if guid:
-            logging.error('Using specified model version')
+            logging.info('Using specified model version')
             payload['model'] = guid
 
         result = requests.post(
