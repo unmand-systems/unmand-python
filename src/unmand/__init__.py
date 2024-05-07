@@ -109,10 +109,10 @@ class ExfilAPI:
         files = {"file": file_data}
 
         if guid:
-            logging.error('Model version selection not supported. Defaulting to the ACTIVE model version.')
+            logging.warning('Model version selection will be deprecated in future versions. Please remove the guid parameter from the queue method.')
 
         result = requests.post(
-            f'{self.url}projects/extractions',
+            f'{self.url}projects/extractions{"?model=" + guid if guid else ""}',
             files=files,
             auth=TokenAuth(self.token)
         )
