@@ -107,14 +107,19 @@ class ExfilAPI:
     def queue(self, file_data, guid=None):
         """Submit a document for prediction"""
         files = {"file": file_data}
+        payload = {
+            'source': 'API',
+        }
 
         if guid:
-            logging.error('Model version selection not supported. Defaulting to the ACTIVE model version.')
+            logging.info('Using specified model version')
+            payload['model'] = guid
 
         result = requests.post(
             f'{self.url}projects/extractions',
             files=files,
-            auth=TokenAuth(self.token)
+            auth=TokenAuth(self.token),
+            data=payload
         )
 
         if result.status_code == requests.codes.created:  # pylint: disable=no-member
