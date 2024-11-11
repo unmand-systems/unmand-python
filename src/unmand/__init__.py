@@ -128,7 +128,7 @@ class ExfilAPI:
 
         return Extraction(None, 'FAILED')
 
-    def poll(self, extraction, max_tries=100, interval=10.0, suppress_output=False):  # pylint: disable=too-many-branches
+    def poll(self, extraction, max_tries=100, interval=10.0, suppress_output=False, with_probabilities=False):  # pylint: disable=too-many-branches
         """Check if prediction is done"""
 
         # Helper function
@@ -144,7 +144,8 @@ class ExfilAPI:
             time.sleep(interval)
 
             result = requests.get(
-                f'{self.url}extractions/{extraction_guid}/data', auth=TokenAuth(self.token)
+                f'{self.url}extractions/{extraction_guid}/data', auth=TokenAuth(self.token),
+                params={'probabilities': with_probabilities}
             )
 
             if result.status_code == requests.codes.ok:  # pylint: disable=no-member
