@@ -8,7 +8,7 @@ def readme():
         return f.read()
 
 setuptools.setup(name='unmand',
-    version='2.1.1',
+    version='2.1.2',
     description='Helper library for consuming the Unmand API',
     url='https://github.com/unmand-systems/unmand-python',
     author='Josiah Khor',
