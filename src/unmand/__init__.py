@@ -303,7 +303,7 @@ class DatastoreAPI:
             swarm_project_guid: str = None
     ) -> str:
         """
-        Patch a row in a datastore table
+        Patch rows in a datastore table
 
         Conditions should be a list of dicts with the following keys:
         - column: str
@@ -331,7 +331,7 @@ class DatastoreAPI:
             swarm_project_guid: str = None,
     ) -> str:
         """
-        Delete a row in a datastore table
+        Delete rows in a datastore table
 
         Conditions should be a list of dicts with the following keys:
         - column: str
