@@ -3,20 +3,40 @@ import os
 import time
 import logging
 from datetime import datetime
+from typing import Any, Optional, Literal, Union
 
 import requests
+from requests import RequestException, JSONDecodeError
 from requests.auth import AuthBase
+
+
+class ApiClientError(Exception):
+    """Base exception for all API client errors."""
+
+
+class ApiHttpError(ApiClientError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Union[int, None] = None,
+        response: Union[requests.Response, None] = None,
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response = response
 
 
 class TokenAuth(AuthBase): # pylint: disable=too-few-public-methods
     """Implements a custom authentication scheme."""
 
-    def __init__(self, token):
+    def __init__(self, token, bearer=False):
         self.token = token
+        self.bearer = bearer
 
     def __call__(self, r):
         """Attach an API token to a custom auth header."""
-        r.headers['Authorization'] = self.token
+        r.headers['Authorization'] = f'Bearer {self.token}' if self.bearer else self.token
         return r
 
 
@@ -100,7 +120,7 @@ class ExfilAPI:
     def __init__(self, token, test=False):
         self.token = token
         if test:
-            self.url = os.getenv('EXFIL_API_URL', 'https://exfil-uat.unmand.app/')
+            self.url = os.getenv('EXFIL_API_URL', 'https://exfil.uat.unmand.app/')
         else:
             self.url = os.getenv('EXFIL_API_URL', 'https://exfil.unmand.app/')
 
@@ -202,9 +222,9 @@ class SwarmAPI:
     def __init__(self, token, test=False):
         self.token = token
         if test:
-            self.url = 'https://swarm-uat.unmand.app/'
+            self.url = os.getenv('SWARM_API_URL', 'https://swarm.uat.unmand.app/')
         else:
-            self.url = 'https://swarm.unmand.app/'
+            self.url = os.getenv('SWARM_API_URL', 'https://swarm.unmand.app/')
 
     def upload_swarm_task(self, task):
         """Upload a Swarm task"""
@@ -227,3 +247,137 @@ class SwarmAPI:
             return r.json()
         logging.error(f'API returned {r.status_code}') # pylint: disable=logging-fstring-interpolation
         return False
+
+class DatastoreAPI:
+    """Implements a connection to the Datastore API"""
+
+    def __init__(self, token, test=False):
+        self.token = token
+        if test:
+            self.url = os.getenv('DATASTORE_API_URL', 'https://datastore.uat.unmand.app/')
+        else:
+            self.url = os.getenv('DATASTORE_API_URL', 'https://datastore.unmand.app/')
+
+    def _make_api_call(
+            self,
+            path: str,
+            request_method: Literal["GET", "POST", "PATCH", "DELETE"] = "GET",
+            json_body: Optional[Union[dict, list]] = None,
+    ) -> dict:
+
+        try:
+            kwargs: dict[str, Any] = {
+                "auth": TokenAuth(self.token, bearer=True),
+            }
+
+            if json_body is not None:
+                kwargs["json"] = json_body
+
+            response = requests.request(
+                method=request_method,
+                url=f"{self.url}/{path}",
+                **kwargs,
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except RequestException as e:
+            response = e.response
+            message = "API request failed"
+
+            if response is not None:
+                try:
+                    body = response.json()
+                except JSONDecodeError:
+                    pass
+                else:
+                    if isinstance(body, dict):
+                        message = body.get("message") or str(body)
+                    else:
+                        message = str(body)
+
+                raise ApiHttpError(
+                    message,
+                    status_code=response.status_code,
+                    response=response,
+                ) from e
+
+            raise ApiClientError("Network error while calling API") from e
+
+    def _get_item_guid_from_key(self, key: str, store_guid: str = None, swarm_project_guid: str = None) -> str:
+        """Get guid of a datastore item from its key"""
+
+        if not ((store_guid and not swarm_project_guid) or (swarm_project_guid and not store_guid)):
+            raise ValueError("Exactly one of store_guid or swarm_project_guid must be provided.")
+
+        url_arg = f'?storeGuid={store_guid}' if store_guid else f'?swarmProjectGuid={swarm_project_guid}'
+
+        return self._make_api_call(f'stores/items/key/{key}{url_arg}')['guid']
+
+    def create_store_table_rows(self, table_key: str, rows: list[dict[str, Any]], store_guid: str = None, swarm_project_guid: str = None) -> None:
+        """Create rows in a datastore table"""
+
+        table_guid = self._get_item_guid_from_key(table_key, store_guid, swarm_project_guid)
+
+        self._make_api_call(
+            path=f'tables/{table_guid}/rows',
+            request_method='POST',
+            json_body=rows
+        )
+
+    def patch_store_table_rows(
+            self,
+            table_key: str,
+            update_values: dict,
+            conditions: list[dict],
+            logical_operator: Literal['AND', 'OR'] = 'AND',
+            dry_run: bool = False,
+            store_guid: str = None,
+            swarm_project_guid: str = None
+    ) -> str:
+        """
+        Patch rows in a datastore table
+
+        Conditions should be a list of dicts with the following keys:
+        - column: str
+        - operator: Literal['=', '!=', '>', '<', '>=', '<=', 'LIKE', 'ILIKE', 'NOT ILIKE', 'IS', 'IS NOT', 'IN', 'ANY', '@>', '&&']
+        - value: Any
+        """
+
+        table_guid = self._get_item_guid_from_key(table_key, store_guid, swarm_project_guid)
+
+        update_request = {'updateValues': update_values, 'conditions': conditions, 'logicalOperator': logical_operator, 'dryRun': dry_run}
+
+        return self._make_api_call(
+            path=f'tables/{table_guid}/rows',
+            request_method='PATCH',
+            json_body=update_request
+        )['message']
+
+    def delete_store_table_rows(
+            self,
+            table_key: str,
+            conditions: list[dict],
+            logical_operator: Literal['AND', 'OR'] = 'AND',
+            dry_run: bool = False,
+            store_guid: str = None,
+            swarm_project_guid: str = None,
+    ) -> str:
+        """
+        Delete rows in a datastore table
+
+        Conditions should be a list of dicts with the following keys:
+        - column: str
+        - operator: Literal['=', '!=', '>', '<', '>=', '<=', 'LIKE', 'ILIKE', 'NOT ILIKE', 'IS', 'IS NOT', 'IN', 'ANY', '@>', '&&']
+        - value: Any
+        """
+
+        table_guid = self._get_item_guid_from_key(table_key, store_guid, swarm_project_guid)
+
+        delete_request = {'conditions': conditions, 'logicalOperator': logical_operator, 'dryRun': dry_run}
+
+        return self._make_api_call(
+            path=f'tables/{table_guid}/rows',
+            request_method='DELETE',
+            json_body=delete_request
+        )['message']
