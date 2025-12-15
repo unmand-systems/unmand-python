@@ -328,7 +328,7 @@ class DatastoreAPI:
     def patch_store_table_rows(
             self,
             table_key: str,
-            row_values: dict,
+            update_values: dict,
             conditions: list[dict],
             logical_operator: Literal['AND', 'OR'] = 'AND',
             dry_run: bool = False,
@@ -346,7 +346,7 @@ class DatastoreAPI:
 
         table_guid = self._get_item_guid_from_key(table_key, store_guid, swarm_project_guid)
 
-        update_request = {'rowValues': row_values, 'conditions': conditions, 'logicalOperator': logical_operator, 'dryRun': dry_run}
+        update_request = {'updateValues': update_values, 'conditions': conditions, 'logicalOperator': logical_operator, 'dryRun': dry_run}
 
         return self._make_api_call(
             path=f'tables/{table_guid}/rows',
