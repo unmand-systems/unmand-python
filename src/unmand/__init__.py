@@ -6,8 +6,25 @@ from datetime import datetime
 from typing import Any, Optional, Literal, Union
 
 import requests
-from requests import RequestException
+from requests import RequestException, JSONDecodeError
 from requests.auth import AuthBase
+
+
+class ApiClientError(Exception):
+    """Base exception for all API client errors."""
+
+
+class ApiHttpError(ApiClientError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Union[int, None] = None,
+        response: Union[requests.Response, None] = None,
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response = response
 
 
 class TokenAuth(AuthBase): # pylint: disable=too-few-public-methods
@@ -204,9 +221,9 @@ class SwarmAPI:
     def __init__(self, token, test=False):
         self.token = token
         if test:
-            self.url = 'https://swarm.uat.unmand.app/'
+            self.url = os.getenv('SWARM_API_URL', 'https://swarm.uat.unmand.app/')
         else:
-            self.url = 'https://swarm.unmand.app/'
+            self.url = os.getenv('SWARM_API_URL', 'https://swarm.unmand.app/')
 
     def upload_swarm_task(self, task):
         """Upload a Swarm task"""
@@ -236,50 +253,65 @@ class DatastoreAPI:
     def __init__(self, token, test=False):
         self.token = token
         if test:
-            self.url = 'https://datastore.uat.unmand.app/'
+            self.url = os.getenv('DATASTORE_API_URL', 'https://datastore.uat.unmand.app/')
         else:
-            self.url = 'https://datastore.unmand.app/'
+            self.url = os.getenv('DATASTORE_API_URL', 'https://datastore.unmand.app/')
 
     def _make_api_call(
             self,
             path: str,
-            request_method: Literal['GET', 'POST', 'PATCH', 'DELETE'] = 'GET',
-            json_body: Optional[Union[dict, list]] = None
+            request_method: Literal["GET", "POST", "PATCH", "DELETE"] = "GET",
+            json_body: Optional[Union[dict, list]] = None,
     ) -> dict:
 
         try:
             kwargs: dict[str, Any] = {
-                "auth": TokenAuth(self.token)
+                "auth": TokenAuth(self.token),
             }
 
             if json_body is not None:
                 kwargs["json"] = json_body
 
-            response = requests.request(method=request_method, url=f'{self.url}{path}', **kwargs)
+            response = requests.request(
+                method=request_method,
+                url=f"{self.url}{path}",
+                **kwargs,
+            )
             response.raise_for_status()
             return response.json()
 
         except RequestException as e:
-            api_message = None
-            if e.response is not None:
+            response = e.response
+            message = "API request failed"
+
+            if response is not None:
                 try:
-                    body = e.response.json()
-                    api_message = body.get("message")
-                except Exception:
+                    body = response.json()
+                except JSONDecodeError:
                     pass
+                else:
+                    if isinstance(body, dict):
+                        message = body.get("message") or str(body)
+                    else:
+                        message = str(body)
 
-            if api_message:
-                raise ValueError(api_message) from e
+                raise ApiHttpError(
+                    message,
+                    status_code=response.status_code,
+                    response=response,
+                ) from e
 
-            raise
+            raise ApiClientError("Network error while calling API") from e
 
     def _get_item_guid_from_key(self, key: str, store_guid: str = None, swarm_project_guid: str = None) -> str:
         """Get guid of a datastore item from its key"""
 
-        if not (store_guid or swarm_project_guid) or (store_guid and swarm_project_guid):
+        if not ((store_guid and not swarm_project_guid) or (swarm_project_guid and not store_guid)):
             raise ValueError("Exactly one of store_guid or swarm_project_guid must be provided.")
 
-        return self._make_api_call(f'stores/{store_guid or swarm_project_guid}/items/{key}')['guid']
+        url_arg = f'?storeGuid={store_guid}' if store_guid else f'?swarmProjectGuid={swarm_project_guid}'
+
+        return self._make_api_call(f'stores/items/key/{key}{url_arg}')['guid']
 
     def create_store_table_rows(self, table_key: str, rows: list[dict[str, Any]], store_guid: str = None, swarm_project_guid: str = None) -> None:
         """Create rows in a datastore table"""
