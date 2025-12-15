@@ -30,12 +30,13 @@ class ApiHttpError(ApiClientError):
 class TokenAuth(AuthBase): # pylint: disable=too-few-public-methods
     """Implements a custom authentication scheme."""
 
-    def __init__(self, token):
+    def __init__(self, token, bearer=False):
         self.token = token
+        self.bearer = bearer
 
     def __call__(self, r):
         """Attach an API token to a custom auth header."""
-        r.headers['Authorization'] = self.token
+        r.headers['Authorization'] = f'Bearer {self.token}' if self.bearer else self.token
         return r
 
 
@@ -266,7 +267,7 @@ class DatastoreAPI:
 
         try:
             kwargs: dict[str, Any] = {
-                "auth": TokenAuth(self.token),
+                "auth": TokenAuth(self.token, bearer=True),
             }
 
             if json_body is not None:
@@ -274,7 +275,7 @@ class DatastoreAPI:
 
             response = requests.request(
                 method=request_method,
-                url=f"{self.url}{path}",
+                url=f"{self.url}/{path}",
                 **kwargs,
             )
             response.raise_for_status()
